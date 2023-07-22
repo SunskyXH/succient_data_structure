@@ -11,43 +11,35 @@ pub enum WaveletTreeNode {
 }
 
 impl WaveletTreeNode {
-    pub fn new(_string: &str) -> Self {
-        // FIXME: hard coded
-        // println!("string: {}", string);
-        // let codex = construct_codex("$abcdefg");
-        let n00 = WaveletTreeNode::Node {
-            bit_vector: BitVector::new(vec![1, 1, 1, 0]),
-            left: Box::new(WaveletTreeNode::Empty),
-            right: Box::new(WaveletTreeNode::Empty),
-        };
-        let n01 = WaveletTreeNode::Node {
-            bit_vector: BitVector::new(vec![0, 1, 1, 0, 1, 0]),
-            left: Box::new(WaveletTreeNode::Empty),
-            right: Box::new(WaveletTreeNode::Empty),
-        };
-        let n11 = WaveletTreeNode::Node {
-            bit_vector: BitVector::new(vec![0, 1, 1]),
-            left: Box::new(WaveletTreeNode::Empty),
-            right: Box::new(WaveletTreeNode::Empty),
-        };
+    pub fn new(string: &str, codex: &HashMap<char, Vec<u8>>) -> Self {
+        let max_depth = codex.values().map(|v| v.len()).max().unwrap_or(0);
 
-        let n0 = WaveletTreeNode::Node {
-            bit_vector: BitVector::new(vec![0, 1, 1, 0, 1, 1, 0, 1, 1, 0]),
-            left: Box::new(n00),
-            right: Box::new(n01),
-        };
+        fn create_node(
+            string: &[u8],
+            codex: &HashMap<char, Vec<u8>>,
+            depth: usize,
+            max_depth: usize,
+        ) -> WaveletTreeNode {
+            if string.is_empty() || depth >= max_depth {
+                return WaveletTreeNode::Empty;
+            }
+            let (left_string, right_string): (Vec<_>, Vec<_>) = string
+                .iter()
+                .partition(|&&ch| codex[&(ch as char)][depth] == 0);
 
-        let n1 = WaveletTreeNode::Node {
-            bit_vector: BitVector::new(vec![1, 1, 1]),
-            left: Box::new(WaveletTreeNode::Empty),
-            right: Box::new(n11),
-        };
+            let bit_vector = string
+                .iter()
+                .map(|&ch| codex[&(ch as char)][depth])
+                .collect();
 
-        WaveletTreeNode::Node {
-            bit_vector: BitVector::new(vec![0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0]),
-            left: Box::new(n0),
-            right: Box::new(n1),
+            WaveletTreeNode::Node {
+                bit_vector: BitVector::new(bit_vector),
+                left: Box::new(create_node(&left_string, codex, depth + 1, max_depth)),
+                right: Box::new(create_node(&right_string, codex, depth + 1, max_depth)),
+            }
         }
+
+        create_node(&string.bytes().collect::<Vec<_>>(), codex, 0, max_depth)
     }
 
     pub fn access(&self, index: usize) -> BitVector {
@@ -72,7 +64,7 @@ impl WaveletTreeNode {
         BitVector::new(s)
     }
 
-    pub fn rank(&self, char: &str, index: usize) -> usize {
+    pub fn rank(&self, char: &char, index: usize) -> usize {
         let mut current_node = self;
         let mut i = index;
         let mut count = 0;
@@ -98,7 +90,7 @@ impl WaveletTreeNode {
         count
     }
 
-    pub fn select(&self, char: &str, index: usize) -> usize {
+    pub fn select(&self, char: &char, index: usize) -> usize {
         let mut current_node = self;
         let mut i = index;
         let codex = construct_codex("$abcdefg");
@@ -142,16 +134,19 @@ impl WaveletTreeNode {
     }
 }
 
-pub fn construct_codex(_string: &str) -> HashMap<&str, Vec<u8>> {
+pub fn construct_codex(string: &str) -> HashMap<char, Vec<u8>> {
     let mut map = HashMap::new();
-    map.insert("$", vec![0, 0, 0]);
-    map.insert("a", vec![0, 0, 1]);
-    map.insert("b", vec![0, 1, 0]);
-    map.insert("c", vec![0, 1, 1]);
-    map.insert("d", vec![1, 0, 0]);
-    map.insert("e", vec![1, 0, 1]);
-    map.insert("f", vec![1, 1, 0]);
-    map.insert("g", vec![1, 1, 1]);
+    let mut unique_chars = string.chars().collect::<Vec<_>>();
+    unique_chars.sort_unstable();
+    unique_chars.dedup();
 
+    for (i, ch) in unique_chars.iter().enumerate() {
+        let binary = format!("{:03b}", i); // Format into 3-bits binary
+        let binary_vec = binary
+            .chars()
+            .map(|b| b.to_digit(2).unwrap() as u8)
+            .collect();
+        map.insert(*ch, binary_vec);
+    }
     map
 }
