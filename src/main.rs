@@ -14,8 +14,10 @@ fn main() {
             codex.get(&t.chars().nth(i).unwrap()).unwrap()
         );
     }
+
+    let a = "a".chars().next().unwrap();
     // the T[0..8] contains 3 'a's
-    assert_eq!(root.rank(&"a".chars().next().unwrap(), 8), 3);
+    assert_eq!(root.rank(&a, 8), 3);
     // the 3rd 'a' is at T[8]
-    assert_eq!(root.select(&"a".chars().next().unwrap(), 3), 8);
+    assert_eq!(root.select(&a, 3), 8);
 }

@@ -94,43 +94,42 @@ impl WaveletTreeNode {
         let mut current_node = self;
         let mut i = index;
         let codex = construct_codex("$abcdefg");
-        let t = codex.get(char).unwrap();
-        let mut d = 0;
-        // traverse to the leaf node, store the sequence of nodes in stack
-        let mut stack: Vec<&WaveletTreeNode> = vec![];
-        loop {
-            match current_node {
-                WaveletTreeNode::Empty => break,
-                WaveletTreeNode::Node {
-                    bit_vector,
-                    left,
-                    right,
-                } => {
-                    stack.push(current_node);
-                    let bit = t[d];
-                    i = bit_vector.rank(bit, i);
-                    current_node = if bit == 0 { left } else { right };
-                    d += 1;
-                }
+        let coding_sequence = codex.get(char);
+        match coding_sequence {
+            None => {
+                panic!("given char is not in the codex");
             }
-        }
-        // pop the stack and traverse back to the root node
-        i = index;
-        loop {
-            match stack.pop() {
-                None => break,
-                Some(node) => match node {
-                    WaveletTreeNode::Empty => break,
-                    WaveletTreeNode::Node { bit_vector, .. } => {
-                        d -= 1;
-                        let bit = t[d];
-                        i = bit_vector.select(bit, i) + 1;
+            Some(t) => {
+                let mut depth = 0;
+                // traverse to the leaf node, store the sequence of nodes in stack
+                let mut stack: Vec<&WaveletTreeNode> = vec![];
+                loop {
+                    match current_node {
+                        WaveletTreeNode::Empty => break,
+                        WaveletTreeNode::Node {
+                            bit_vector,
+                            left,
+                            right,
+                        } => {
+                            stack.push(current_node);
+                            let bit = t[depth];
+                            i = bit_vector.rank(bit, i);
+                            current_node = if bit == 0 { left } else { right };
+                            depth += 1;
+                        }
                     }
-                },
+                }
+                // pop the stack and traverse back to the root node
+                i = index;
+                while let Some(WaveletTreeNode::Node { bit_vector, .. }) = stack.pop() {
+                    depth -= 1;
+                    let bit = t[depth];
+                    i = bit_vector.select(bit, i) + 1;
+                }
+                // convert to 0-based index
+                i - 1
             }
         }
-        // convert to 0-based index
-        i - 1
     }
 }
 
