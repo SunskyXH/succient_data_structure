@@ -10,32 +10,34 @@ impl BitVector {
         BitVector { data }
     }
 
-    /// Return number of `target` in bit_vector[0..i]
-    pub fn rank(&self, target: u8, index: usize) -> usize {
-        let mut count = 0;
-        for j in 0..=index {
-            if self[j] == target {
-                count += 1;
-            }
+    /// Return number of `target` in bit_vector[0..index]
+    pub fn rank(&self, target: u8, index: usize) -> Option<usize> {
+        if index >= self.len() {
+            return None;
         }
-        count
+        Some(
+            self.iter()
+                .take(index + 1)
+                .filter(|&&x| x == target)
+                .count(),
+        )
     }
 
-    // Return position of `i-th` 1 from the start
-    pub fn select(&self, target: u8, index: usize) -> usize {
+    /// Return the index of `index`-th `target` from the start
+    pub fn select(&self, target: u8, index: usize) -> Option<usize> {
         if index < 1 {
-            panic!("i must be greater than 0");
+            return None;
         }
         let mut count = 0;
-        for j in 0..self.data.len() {
-            if self[j] == target {
+        for (i, &x) in self.iter().enumerate() {
+            if x == target {
                 count += 1;
-            }
-            if count == index {
-                return j;
+                if count == index {
+                    return Some(i);
+                }
             }
         }
-        panic!("No {}-th 1", index);
+        None
     }
 }
 

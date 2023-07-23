@@ -56,7 +56,7 @@ impl WaveletTreeNode {
                 } => {
                     let bit = bit_vector[i];
                     s.push(bit);
-                    i = bit_vector.rank(bit, i) - 1;
+                    i = bit_vector.rank(bit, i).unwrap() - 1;
                     current_node = if bit == 0 { left } else { right };
                 }
             }
@@ -80,7 +80,7 @@ impl WaveletTreeNode {
                     right,
                 } => {
                     let bit = t[d];
-                    count = bit_vector.rank(bit, i);
+                    count = bit_vector.rank(bit, i).unwrap();
                     i = count - 1;
                     current_node = if bit == 0 { left } else { right };
                     d += 1;
@@ -113,7 +113,7 @@ impl WaveletTreeNode {
                         } => {
                             stack.push(current_node);
                             let bit = t[depth];
-                            i = bit_vector.rank(bit, i);
+                            i = bit_vector.rank(bit, i).unwrap();
                             current_node = if bit == 0 { left } else { right };
                             depth += 1;
                         }
@@ -124,7 +124,7 @@ impl WaveletTreeNode {
                 while let Some(WaveletTreeNode::Node { bit_vector, .. }) = stack.pop() {
                     depth -= 1;
                     let bit = t[depth];
-                    i = bit_vector.select(bit, i) + 1;
+                    i = bit_vector.select(bit, i).unwrap() + 1;
                 }
                 // convert to 0-based index
                 i - 1
@@ -133,6 +133,7 @@ impl WaveletTreeNode {
     }
 }
 
+/// Construct dict by given string.
 pub fn construct_codex(string: &str) -> HashMap<char, Vec<u8>> {
     let mut map = HashMap::new();
     let mut unique_chars = string.chars().collect::<Vec<_>>();
