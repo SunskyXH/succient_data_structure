@@ -11,7 +11,7 @@ impl BitVector {
         BitVector { data }
     }
 
-    /// Return number of `target` in bit_vector[0..index]
+    /// Return number of `target` in `B[0..index]`
     pub fn rank(&self, target: u8, index: usize) -> Option<usize> {
         if index >= self.len() {
             return None;

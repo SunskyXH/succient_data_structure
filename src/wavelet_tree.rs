@@ -45,6 +45,7 @@ impl WaveletTreeNode {
         create_node(&t.bytes().collect::<Vec<_>>(), &codex, 0, max_depth)
     }
 
+    /// Return `T[index]`
     pub fn access(&self, index: usize) -> BitVector {
         let mut current_node = self;
         let mut i = index;
@@ -68,6 +69,7 @@ impl WaveletTreeNode {
         BitVector::new(s)
     }
 
+    /// Return the number of `char` in `T[0..index]`
     pub fn rank(&self, char: &char, index: usize) -> Option<usize> {
         let mut current_node = self;
         let mut i = index;
@@ -101,6 +103,7 @@ impl WaveletTreeNode {
         Some(count)
     }
 
+    /// Return the index of the `i`-th `char` in `T`
     pub fn select(&self, char: &char, index: usize) -> Option<usize> {
         let mut current_node = self;
         let mut i = index;
@@ -155,6 +158,7 @@ impl WaveletTreeNode {
         }
     }
 
+    /// Return the codex of the wavelet tree
     pub fn get_codex(&self) -> Option<&HashMap<char, Vec<u8>>> {
         match self {
             WaveletTreeNode::Empty => None,
