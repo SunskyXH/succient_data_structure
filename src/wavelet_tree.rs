@@ -7,13 +7,15 @@ pub enum WaveletTreeNode {
         bit_vector: BitVector,
         left: Box<WaveletTreeNode>,
         right: Box<WaveletTreeNode>,
+        codex: Box<HashMap<char, Vec<u8>>>,
     },
 }
 
 impl WaveletTreeNode {
-    pub fn new(string: &str, codex: &HashMap<char, Vec<u8>>) -> Self {
+    pub fn new(t: &str) -> Self {
+        let alphabet = get_alphabet(t);
+        let codex = construct_codex(alphabet.as_str());
         let max_depth = codex.values().map(|v| v.len()).max().unwrap_or(0);
-
         fn create_node(
             string: &[u8],
             codex: &HashMap<char, Vec<u8>>,
@@ -36,10 +38,11 @@ impl WaveletTreeNode {
                 bit_vector: BitVector::new(bit_vector),
                 left: Box::new(create_node(&left_string, codex, depth + 1, max_depth)),
                 right: Box::new(create_node(&right_string, codex, depth + 1, max_depth)),
+                codex: Box::new(codex.clone()),
             }
         }
 
-        create_node(&string.bytes().collect::<Vec<_>>(), codex, 0, max_depth)
+        create_node(&t.bytes().collect::<Vec<_>>(), &codex, 0, max_depth)
     }
 
     pub fn access(&self, index: usize) -> BitVector {
@@ -53,6 +56,7 @@ impl WaveletTreeNode {
                     bit_vector,
                     left,
                     right,
+                    ..
                 } => {
                     let bit = bit_vector[i];
                     s.push(bit);
@@ -64,11 +68,14 @@ impl WaveletTreeNode {
         BitVector::new(s)
     }
 
-    pub fn rank(&self, char: &char, index: usize) -> usize {
+    pub fn rank(&self, char: &char, index: usize) -> Option<usize> {
         let mut current_node = self;
         let mut i = index;
         let mut count = 0;
-        let codex = construct_codex("$abcdefg");
+        let codex = match self {
+            WaveletTreeNode::Empty => return None,
+            WaveletTreeNode::Node { codex, .. } => codex,
+        };
         let t = codex.get(char).unwrap();
         let mut d = 0;
         loop {
@@ -78,26 +85,35 @@ impl WaveletTreeNode {
                     bit_vector,
                     left,
                     right,
+                    ..
                 } => {
                     let bit = t[d];
-                    count = bit_vector.rank(bit, i).unwrap();
+                    count = match bit_vector.rank(bit, i) {
+                        None => return None,
+                        Some(c) => c,
+                    };
                     i = count - 1;
                     current_node = if bit == 0 { left } else { right };
                     d += 1;
                 }
             }
         }
-        count
+        Some(count)
     }
 
-    pub fn select(&self, char: &char, index: usize) -> usize {
+    pub fn select(&self, char: &char, index: usize) -> Option<usize> {
         let mut current_node = self;
         let mut i = index;
-        let codex = construct_codex("$abcdefg");
+        let codex = match self {
+            WaveletTreeNode::Empty => {
+                return None;
+            }
+            WaveletTreeNode::Node { codex, .. } => codex,
+        };
         let coding_sequence = codex.get(char);
         match coding_sequence {
             None => {
-                panic!("given char is not in the codex");
+                return None;
             }
             Some(t) => {
                 let mut depth = 0;
@@ -110,10 +126,14 @@ impl WaveletTreeNode {
                             bit_vector,
                             left,
                             right,
+                            ..
                         } => {
                             stack.push(current_node);
                             let bit = t[depth];
-                            i = bit_vector.rank(bit, i).unwrap();
+                            i = match bit_vector.rank(bit, i) {
+                                None => return None,
+                                Some(c) => c,
+                            };
                             current_node = if bit == 0 { left } else { right };
                             depth += 1;
                         }
@@ -124,13 +144,44 @@ impl WaveletTreeNode {
                 while let Some(WaveletTreeNode::Node { bit_vector, .. }) = stack.pop() {
                     depth -= 1;
                     let bit = t[depth];
-                    i = bit_vector.select(bit, i).unwrap() + 1;
+                    i = match bit_vector.select(bit, i) {
+                        None => return None,
+                        Some(c) => c + 1,
+                    };
                 }
                 // convert to 0-based index
-                i - 1
+                Some(i - 1)
             }
         }
     }
+
+    pub fn get_codex(&self) -> Option<&HashMap<char, Vec<u8>>> {
+        match self {
+            WaveletTreeNode::Empty => None,
+            WaveletTreeNode::Node { codex, .. } => Some(codex),
+        }
+    }
+}
+
+/// Get alphabet from given string.
+pub fn get_alphabet(s: &str) -> String {
+    let mut alphabet: Vec<char> = Vec::new();
+    let mut has_dollar_sign = false;
+
+    for c in s.chars() {
+        if c == '$' {
+            has_dollar_sign = true;
+        } else if c.is_alphabetic() && !alphabet.contains(&c) {
+            alphabet.push(c);
+        }
+    }
+
+    alphabet.sort();
+    let mut result: String = alphabet.into_iter().collect();
+    if has_dollar_sign {
+        result.insert(0, '$');
+    }
+    result
 }
 
 /// Construct dict by given string.
@@ -149,4 +200,63 @@ pub fn construct_codex(string: &str) -> HashMap<char, Vec<u8>> {
         map.insert(*ch, binary_vec);
     }
     map
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ops::Deref;
+    const T: &str = "abcafcgbagcb$";
+
+    fn create_tree(t: &str) -> WaveletTreeNode {
+        let root = WaveletTreeNode::new(t);
+        match root {
+            WaveletTreeNode::Empty => panic!("empty wavelet tree"),
+            WaveletTreeNode::Node { .. } => root,
+        }
+    }
+
+    #[test]
+    fn access_works() {
+        let root = create_tree(T);
+        let codex = root.get_codex().unwrap();
+
+        for i in 0..T.len() {
+            assert_eq!(
+                root.access(i).deref(),
+                codex.get(&T.chars().nth(i).unwrap()).unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn rank_works() {
+        let root = create_tree(T);
+
+        let a = 'a';
+        assert_eq!(root.rank(&a, 0), Some(1));
+        assert_eq!(root.rank(&a, 1), Some(1));
+        assert_eq!(root.rank(&a, 2), Some(1));
+        assert_eq!(root.rank(&a, 3), Some(2));
+        assert_eq!(root.rank(&a, 4), Some(2));
+        assert_eq!(root.rank(&a, 5), Some(2));
+        assert_eq!(root.rank(&a, 6), Some(2));
+        assert_eq!(root.rank(&a, 7), Some(2));
+        assert_eq!(root.rank(&a, 8), Some(3));
+        assert_eq!(root.rank(&a, 9), Some(3));
+        assert_eq!(root.rank(&a, 10), Some(3));
+        assert_eq!(root.rank(&a, 11), Some(3));
+        assert_eq!(root.rank(&a, 12), Some(3));
+        assert_eq!(root.rank(&a, 13), None);
+    }
+
+    #[test]
+    fn select_works() {
+        let root = create_tree(T);
+        let a = 'a';
+        assert_eq!(root.select(&a, 1), Some(0));
+        assert_eq!(root.select(&a, 2), Some(3));
+        assert_eq!(root.select(&a, 3), Some(8));
+        assert_eq!(root.select(&a, 4), None);
+    }
 }
